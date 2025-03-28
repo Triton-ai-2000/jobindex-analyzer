@@ -12,14 +12,16 @@ app = Flask(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Google Sheets setup
-SPREADSHEET_NAME = "JobindexScraper"
+SPREADSHEET_NAME = "JobindexScraper"  # The name of the Google Sheet
 SE_JOBBET_COL = "Se jobbet"
 RELEVANT_COL = "Relevant job"
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
 client = gspread.authorize(credentials)
-sheet = client.open(SPREADSHEET_NAME).sheet1
+
+# Update sheet reference with the correct sheet name (case-sensitive)
+sheet = client.open(SPREADSHEET_NAME).worksheet("Sheet1")  # Replace "Sheet1" with the actual sheet name if needed
 
 # Helper functions
 def fetch_job_text(link):
@@ -41,26 +43,26 @@ def analyze(job_text, prompt_instruks):
             ]
         )
         output = response.choices[0].message.content.strip().lower()
-        return "ja" if "ja" in output else "nej"
+        return "ja" if "ja" in output else "nej" 
     except Exception:
         return "fejl"
-
+        
 # Routes
-@app.route("/")
+@app.route("/")  
 def home():
-    return "Jobindex Analyzer kører!"
-
+    return "Jobindex Analyzer kører!"  
+    
 @app.route("/docs")
 def docs():
     return jsonify({"message": "API documentation will be here."})
-
+                
 @app.route("/analyze", methods=["POST"])
 def analyze_jobs():
     data = request.get_json()
     prompt_instruks = data.get("instructions")
     rows = sheet.get_all_records()
     updates = []
-
+        
     for i, row in enumerate(rows, start=2):
         link = row.get(SE_JOBBET_COL)
         if not link or row.get(RELEVANT_COL):
@@ -69,12 +71,12 @@ def analyze_jobs():
         vurdering = analyze(job_text, prompt_instruks)
         updates.append((i, vurdering))
         time.sleep(1)
-
+    
     for row_num, vurdering in updates:
         sheet.update_cell(row_num, sheet.find(RELEVANT_COL).col, vurdering)
 
     return jsonify({"status": "done", "updated": len(updates)})
-
+    
 if __name__ == "__main__":
     # Ensure Flask uses the right external port for Render
     port = int(os.environ.get("PORT", 5000))  # Default to 5000 if not set
