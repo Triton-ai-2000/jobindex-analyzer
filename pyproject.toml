@@ -2,7 +2,9 @@
 name = "python-template"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = [
+  { name = "Daniel Massot", email = "daniel.massot@gmail.com" }
+]
 requires-python = ">=3.11"
 dependencies = [
   "openai>=1.12.0",
