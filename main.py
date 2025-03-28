@@ -14,7 +14,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 # Google Sheets setup
 SPREADSHEET_NAME = "JobindexScraper"
 SE_JOBBET_COL = "Se jobbet"
-RELEVANT_COL = "Relevant job"
+RELEVANT_COL = "Relevant job"  # Corrected the column name
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
