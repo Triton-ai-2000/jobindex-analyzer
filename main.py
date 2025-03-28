@@ -12,16 +12,14 @@ app = Flask(__name__)
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Google Sheets setup
-SPREADSHEET_NAME = "JobindexScraper"  # The name of the Google Sheet
+SPREADSHEET_NAME = "JobindexScraper"
 SE_JOBBET_COL = "Se jobbet"
 RELEVANT_COL = "Relevant job"
 
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
 client = gspread.authorize(credentials)
-
-# Update sheet reference with the correct sheet name (case-sensitive)
-sheet = client.open(SPREADSHEET_NAME).worksheet("Sheet1")  # Replace "Sheet1" with the actual sheet name if needed
+sheet = client.open(SPREADSHEET_NAME).sheet1
 
 # Helper functions
 def fetch_job_text(link):
@@ -46,12 +44,12 @@ def analyze(job_text, prompt_instruks):
         return "ja" if "ja" in output else "nej" 
     except Exception:
         return "fejl"
-        
+
 # Routes
 @app.route("/")  
 def home():
     return "Jobindex Analyzer kører!"  
-    
+
 @app.route("/docs")
 def docs():
     return jsonify({"message": "API documentation will be here."})
