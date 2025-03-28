@@ -33,63 +33,47 @@ def fetch_job_text(link):
 
 def analyze(job_text, prompt_instruks):
     try:
-        res = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        response = openai.chat.completions.create(
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": "Du er en hjælper som vurderer jobopslag baseret på brugerens kriterier."},
-                {"role": "user", "content": f"{prompt_instruks}\n\nJobopslag:\n{job_text}"}
-            ],
-            temperature=0
+                {"role": "system", "content": prompt_instruks},
+                {"role": "user", "content": job_text}
+            ]
         )
-        return "Ja" if "Ja" in res["choices"][0]["message"]["content"] else ""
+        output = response.choices[0].message.content.strip().lower()
+        return "ja" if "ja" in output else "nej"
     except Exception:
-        return ""
+        return "fejl"
 
-def start_analyse(prompt_instruks):
-    links = sheet.col_values(sheet.find(SE_JOBBET_COL).col)[1:]  # Drop header
-    relevant_col = sheet.find(RELEVANT_COL).col
+# Routes
+@app.route("/")
+def home():
+    return "Jobindex Analyzer kører!"
+
+@app.route("/docs")
+def docs():
+    return jsonify({"message": "API documentation will be here."})
+
+@app.route("/analyze", methods=["POST"])
+def analyze_jobs():
+    data = request.get_json()
+    prompt_instruks = data.get("instructions")
+    rows = sheet.get_all_records()
     updates = []
 
-    for idx, link in enumerate(links):
+    for i, row in enumerate(rows, start=2):
+        link = row.get(SE_JOBBET_COL)
+        if not link or row.get(RELEVANT_COL):
+            continue
         job_text = fetch_job_text(link)
         vurdering = analyze(job_text, prompt_instruks)
-        updates.append([vurdering])
-        print(f"{idx+1}/{len(links)} ✅ {link} => {vurdering}")
-        time.sleep(1.1)  # Undgå OpenAI throttling
+        updates.append((i, vurdering))
+        time.sleep(1)
 
-    # Skriv til sheet (batch)
-    cell_range = f"{gspread.utils.rowcol_to_a1(2, relevant_col)}:{gspread.utils.rowcol_to_a1(len(updates)+1, relevant_col)}"
-    cell_list = sheet.range(cell_range)
-    for i, cell in enumerate(cell_list):
-        cell.value = updates[i][0]
-    sheet.update_cells(cell_list)
+    for row_num, vurdering in updates:
+        sheet.update_cell(row_num, sheet.find(RELEVANT_COL).col, vurdering)
 
-    return "Analyse færdig og ark opdateret."
+    return jsonify({"status": "done", "updated": len(updates)})
 
-# Endpoint til GPT action
-@app.route("/analyser", methods=["POST"])
-def analyser():
-    data = request.get_json()
-    print("🔍 Modtaget data:", data)
-    instruks = data.get("instruks", "")
-    print(f"Modtog instruks: {instruks}")
-
-    try:
-        resultat = start_analyse(instruks)
-    except Exception as e:
-        import traceback
-        print("🚨 Fejl i start_analyse:")
-        traceback.print_exc()
-        error_response = jsonify({"resultat": "Fejl under analyse"})
-        error_response.headers["Content-Type"] = "application/json"
-        return error_response, 500
-
-    response = jsonify({"resultat": resultat})
-    response.headers["Content-Type"] = "application/json"
-    return response
-
-
-# Flask start
 if __name__ == "__main__":
-    print("✅ Klar til at modtage instruktioner og analysere jobopslag.")
-    app.run(host="0.0.0.0", port=3000)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
