@@ -34,28 +34,26 @@ def fetch_job_text(link):
 
 def analyze(job_text, prompt_instruks):
     try:
-        # Make the API call using GPT-4o model with correct parameters
+        print(f"Processing job text: {job_text[:100]}...")  # Print first 100 chars for debugging
+        print(f"Using prompt instructions: {prompt_instruks[:100]}...")  # Print first 100 chars
+
         response = openai.chat.completions.create(
-            model="gpt-4o",  # Using GPT-4o model
+            model="gpt-4o",
             messages=[
-                {"role": "system", "content": "Du er en hjælper som vurderer jobopslag baseret på brugerens kriterier."},
-                {"role": "user", "content": f"{prompt_instruks}\n\nJobopslag:\n{job_text}"}
-            ],
-            temperature=0
+                {"role": "system", "content": prompt_instruks},
+                {"role": "user", "content": job_text}
+            ]
         )
         
-        # Extract the response message content
-        model_output = response["choices"][0]["message"]["content"].strip()
+        print(f"Got response: {response}")
+        output = response.choices[0].message.content.strip().lower()
+        print(f"Extracted output: {output}")
         
-        # Check if the output contains "Ja" or "Nej" to determine relevance
-        if "ja" in model_output.lower():
-            return "Ja"
-        else:
-            return "Nej"
-        
+        return "ja" if "ja" in output else "nej" 
     except Exception as e:
-        print(f"Error analyzing job posting: {e}")
-        return "Fejl"
+        print(f"Error analyzing job posting:\n\n{str(e)}\n")
+        print(f"Exception type: {type(e)}")
+        return "fejl"
 
 def start_analyse(prompt_instruks):
     links = sheet.col_values(sheet.find(SE_JOBBET_COL).col)[1:]  # Drop header
