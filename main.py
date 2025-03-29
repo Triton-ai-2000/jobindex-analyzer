@@ -16,12 +16,13 @@ SPREADSHEET_NAME = "JobindexScraper"
 SE_JOBBET_COL = "Se jobbet"
 RELEVANT_COL = "Relevant job"
 
+# Define the scope for Google Sheets API access
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 credentials = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open(SPREADSHEET_NAME).sheet1
 
-# Helper functions
+# Helper functions to fetch job descriptions and analyze them
 def fetch_job_text(link):
     try:
         response = requests.get(link, timeout=10)
@@ -29,68 +30,71 @@ def fetch_job_text(link):
         body = soup.find("body")
         return body.get_text(separator=" ", strip=True) if body else ""
     except Exception as e:
-        print(f"Error fetching job text: {e}")
+        print(f"Error fetching job link {link}: {e}")
         return ""
 
 def analyze(job_text, prompt_instruks):
     try:
-        response = openai.chat.completions.create(
-            model="gpt-4",
+        res = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": prompt_instruks},
-                {"role": "user", "content": job_text}
-            ]
+                {"role": "system", "content": "Du er en hjælper som vurderer jobopslag baseret på brugerens kriterier."},
+                {"role": "user", "content": f"{prompt_instruks}\n\nJobopslag:\n{job_text}"}
+            ],
+            temperature=0
         )
-        output = response.choices[0].message.content.strip().lower()
-        print(f"Job text: {job_text}")  # Debugging: log job text
-        print(f"Analysis result: {output}")  # Debugging: log the result of analysis
-        return "ja" if "ja" in output else "nej" 
+        return "Ja" if "Ja" in res["choices"][0]["message"]["content"] else "Nej"
     except Exception as e:
-        print(f"Error during analysis: {e}")
-        return "fejl"
+        print(f"Error analyzing job posting: {e}")
+        return "Fejl"
 
-# Routes
-@app.route("/")  
-def home():
-    return "Jobindex Analyzer kører!"  
-
-@app.route("/docs")
-def docs():
-    return jsonify({"message": "API documentation will be here."})
-
-@app.route("/analyze", methods=["POST"])
-def analyze_jobs():
-    data = request.get_json()
-    prompt_instruks = data.get("instructions")
-    rows = sheet.get_all_records()
+def start_analyse(prompt_instruks):
+    links = sheet.col_values(sheet.find(SE_JOBBET_COL).col)[1:]  # Drop header
+    relevant_col = sheet.find(RELEVANT_COL).col
     updates = []
-    
-    for i, row in enumerate(rows, start=2):
-        link = row.get(SE_JOBBET_COL)
-        if not link or row.get(RELEVANT_COL):
-            continue
+
+    for idx, link in enumerate(links):
         job_text = fetch_job_text(link)
         vurdering = analyze(job_text, prompt_instruks)
+        updates.append([vurdering])
+        print(f"{idx+1}/{len(links)} ✅ {link} => {vurdering}")
+        time.sleep(1.1)  # Avoid OpenAI throttling
 
-        # Debugging: Log each job's evaluation result before updating the sheet
-        print(f"Row {i}: Job Link: {link}")
-        print(f"Row {i}: Evaluation: {vurdering}")
-        
-        updates.append((i, vurdering))
-        time.sleep(1)
-    
-    for row_num, vurdering in updates:
-        try:
-            # Ensuring we update the correct row and column
-            col = sheet.find(RELEVANT_COL).col
-            sheet.update_cell(row_num, col, vurdering)
-            print(f"Updated Row {row_num} with '{vurdering}'")  # Debugging: Log the update
-        except Exception as e:
-            print(f"Error updating row {row_num}: {e}")
-    
-    return jsonify({"status": "done", "updated": len(updates)})
+    # Write results to Google Sheet in batch
+    cell_range = f"{gspread.utils.rowcol_to_a1(2, relevant_col)}:{gspread.utils.rowcol_to_a1(len(updates)+1, relevant_col)}"
+    cell_list = sheet.range(cell_range)
+    for i, cell in enumerate(cell_list):
+        cell.value = updates[i][0]
+    sheet.update_cells(cell_list)
 
+    return "Analyse færdig og ark opdateret."
+
+# Endpoint for GPT action
+@app.route("/analyser", methods=["POST"])
+def analyser():
+    data = request.get_json()  # Receive JSON data from the API call
+    print("🔍 Modtaget data:", data)
+    instruks = data.get("instruks", "")
+    print(f"Modtog instruks: {instruks}")
+
+    try:
+        resultat = start_analyse(instruks)
+    except Exception as e:
+        import traceback
+        print("🚨 Fejl i start_analyse:")
+        traceback.print_exc()
+        error_response = jsonify({"resultat": "Fejl under analyse"})
+        error_response.headers["Content-Type"] = "application/json"
+        return error_response, 500
+
+    response = jsonify({"resultat": resultat})
+    response.headers["Content-Type"] = "application/json"
+    return response
+
+
+# Flask start
 if __name__ == "__main__":
-    # Ensure Flask uses the right external port for Render
-    port = int(os.environ.get("PORT", 10000))  # Default to 10000 if not set
-    app.run(host="0.0.0.0", port=port)  # Binding to all addresses and Render's port
+    # Set the correct port for Render (Port 10000)
+    port = 10000  # Explicitly set to 10000 for Render
+    print("✅ Klar til at modtage instruktioner og analysere jobopslag.")
+    app.run(host="0.0.0.0", port=port)  # Ensure Flask listens on all addresses and correct port
