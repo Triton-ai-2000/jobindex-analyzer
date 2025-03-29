@@ -41,41 +41,87 @@ def fetch_job_text(link):
 
 def analyze(job_text, prompt_instruks):
     try:
+        print(f"🔍 Analyserer jobopslag med instruks: {prompt_instruks}")
+        print(f"📝 Job tekst længde: {len(job_text)} karakterer")
+        
+        if not job_text:
+            print("⚠️ Ingen job tekst fundet")
+            return "Fejl"
+            
+        if not prompt_instruks:
+            print("⚠️ Ingen instruks givet")
+            return "Fejl"
+
         # Using the new OpenAI API structure with GPT-4 Turbo
         response = openai.chat.completions.create(
             model="gpt-4-turbo-preview",
             messages=[
-                {"role": "system", "content": "You are an assistant that analyzes job listings based on user criteria."},
-                {"role": "user", "content": f"{prompt_instruks}\n\nJob listing:\n{job_text}"}
+                {"role": "system", "content": "Du er en assistent der analyserer jobopslag baseret på brugerens kriterier. Du skal kun svare med 'Ja' eller 'Nej'."},
+                {"role": "user", "content": f"Instruks: {prompt_instruks}\n\nJobopslag:\n{job_text}"}
             ],
             temperature=0
         )
+        
         output = response.choices[0].message.content.strip().lower()
-        return "Ja" if "ja" in output else "Nej" 
+        print(f"🤖 GPT svar: {output}")
+        
+        if "ja" in output:
+            return "Ja"
+        elif "nej" in output:
+            return "Nej"
+        else:
+            print(f"⚠️ Uventet svar fra GPT: {output}")
+            return "Fejl"
+            
     except Exception as e:
-        print(f"Error analyzing job posting: {e}")
-        return "Fejl"  # Return "Fejl" if there's an error during analysis
+        print(f"🚨 Fejl i analyze funktionen: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return "Fejl"
 
 def start_analyse(prompt_instruks):
-    links = sheet.col_values(sheet.find(SE_JOBBET_COL).col)[1:]  # Drop header
-    relevant_col = sheet.find(RELEVANT_COL).col
-    updates = []
+    try:
+        print(f"🚀 Starter analyse med instruks: {prompt_instruks}")
+        
+        if not prompt_instruks:
+            print("⚠️ Ingen instruks givet")
+            return "Fejl: Ingen instruks givet"
+            
+        links = sheet.col_values(sheet.find(SE_JOBBET_COL).col)[1:]  # Drop header
+        print(f"📊 Fundet {len(links)} jobopslag at analysere")
+        
+        relevant_col = sheet.find(RELEVANT_COL).col
+        updates = []
 
-    for idx, link in enumerate(links):
-        job_text = fetch_job_text(link)
-        vurdering = analyze(job_text, prompt_instruks)
-        updates.append([vurdering])
-        print(f"{idx+1}/{len(links)} ✅ {link} => {vurdering}")
-        time.sleep(1.1)  # Avoid OpenAI throttling
+        for idx, link in enumerate(links):
+            print(f"\n🔗 Behandler jobopslag {idx+1}/{len(links)}")
+            print(f"URL: {link}")
+            
+            job_text = fetch_job_text(link)
+            if not job_text:
+                print("⚠️ Kunne ikke hente job tekst")
+                updates.append(["Fejl"])
+                continue
+                
+            vurdering = analyze(job_text, prompt_instruks)
+            updates.append([vurdering])
+            print(f"✅ Vurdering: {vurdering}")
+            time.sleep(1.1)  # Avoid OpenAI throttling
 
-    # Write results back to the Google Sheet (batch)
-    cell_range = f"{gspread.utils.rowcol_to_a1(2, relevant_col)}:{gspread.utils.rowcol_to_a1(len(updates)+1, relevant_col)}"
-    cell_list = sheet.range(cell_range)
-    for i, cell in enumerate(cell_list):
-        cell.value = updates[i][0]
-    sheet.update_cells(cell_list)
+        # Write results back to the Google Sheet (batch)
+        cell_range = f"{gspread.utils.rowcol_to_a1(2, relevant_col)}:{gspread.utils.rowcol_to_a1(len(updates)+1, relevant_col)}"
+        cell_list = sheet.range(cell_range)
+        for i, cell in enumerate(cell_list):
+            cell.value = updates[i][0]
+        sheet.update_cells(cell_list)
 
-    return "Analyse færdig og ark opdateret."
+        return "Analyse færdig og ark opdateret."
+        
+    except Exception as e:
+        print(f"🚨 Fejl i start_analyse: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return f"Fejl under analyse: {str(e)}"
 
 # Endpoint for GPT action
 @app.route("/analyser", methods=["POST"])
