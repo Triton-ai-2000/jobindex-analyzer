@@ -34,7 +34,7 @@ def fetch_job_text(link):
 
 def analyze(job_text, prompt_instruks):
     try:
-        response = openai.Completion.create(
+        response = openai.completions.create(
             model="gpt-4",  # Use the appropriate model, e.g., "gpt-3.5-turbo", "gpt-4"
             prompt=f"{prompt_instruks}\n\nJob Posting:\n{job_text}",
             temperature=0.5,  # Adjust this value if needed
