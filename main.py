@@ -41,16 +41,16 @@ def fetch_job_text(link):
 
 def analyze(job_text, prompt_instruks):
     try:
-        # Using the updated method based on the latest OpenAI API
-        response = openai.ChatCompletion.create(
-            model="gpt-4",  # Ensure you are using the GPT-4 model or adjust according to your needs
+        # Using the new OpenAI API structure with GPT-4 Turbo
+        response = openai.chat.completions.create(
+            model="gpt-4-turbo-preview",
             messages=[
                 {"role": "system", "content": "You are an assistant that analyzes job listings based on user criteria."},
                 {"role": "user", "content": f"{prompt_instruks}\n\nJob listing:\n{job_text}"}
             ],
             temperature=0
         )
-        output = response.choices[0].message['content'].strip().lower()
+        output = response.choices[0].message.content.strip().lower()
         return "Ja" if "ja" in output else "Nej" 
     except Exception as e:
         print(f"Error analyzing job posting: {e}")
