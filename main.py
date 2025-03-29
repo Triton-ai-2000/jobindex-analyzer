@@ -1,5 +1,6 @@
 import os
 import time
+import openai
 import gspread
 import requests
 from openai import OpenAI
