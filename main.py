@@ -34,19 +34,14 @@ def fetch_job_text(link):
 
 def analyze(job_text, prompt_instruks):
     try:
-        # Using the correct method for GPT-4 and setting the prompt
-        response = openai.ChatCompletion.create(
-            model="gpt-4",  # Make sure to use the GPT-4 model
-            messages=[
-                {"role": "system", "content": "You are a job evaluator."},
-                {"role": "user", "content": f"{prompt_instruks}\n\nJob Posting:\n{job_text}"}
-            ],
-            temperature=0.5,  # Adjust the randomness level
-            max_tokens=150  # Adjust this to control response length
+        response = openai.Completion.create(
+            model="gpt-4",  # Use the appropriate model, e.g., "gpt-3.5-turbo", "gpt-4"
+            prompt=f"{prompt_instruks}\n\nJob Posting:\n{job_text}",
+            temperature=0.5,  # Adjust this value if needed
+            max_tokens=150  # Set the token limit based on your needs
         )
-        # Extracting and formatting the response
-        output = response['choices'][0]['message']['content'].strip().lower()
-        return "Ja" if "ja" in output else "Nej"
+        output = response.choices[0].text.strip().lower()  # Get the text output and clean it up
+        return "Ja" if "ja" in output else "Nej"  # Adjust based on your desired output
     except Exception as e:
         print(f"Error analyzing job posting: {e}")
         return "Fejl"
