@@ -9,8 +9,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 # Setup
 app = Flask(__name__)
-api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=api_key)  # Create OpenAI client instance
+openai.api_key = os.getenv("OPENAI_API_KEY")
+# client = OpenAI(api_key=api_key)  # Create OpenAI client instance
 
 # Print debug info at startup
 print(f"API key available: {'Yes' if api_key else 'No'}")
