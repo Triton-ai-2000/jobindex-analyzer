@@ -35,7 +35,7 @@ def fetch_job_text(link):
 def analyze(job_text, prompt_instruks):
     try:
         # Make the API call using GPT-4o model with correct parameters
-        response = openai.ChatCompletion.create(
+        response = openai.chat.completions.create(
             model="gpt-4o",  # Using GPT-4o model
             messages=[
                 {"role": "system", "content": "Du er en hjælper som vurderer jobopslag baseret på brugerens kriterier."},
