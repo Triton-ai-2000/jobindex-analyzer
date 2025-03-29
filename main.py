@@ -16,13 +16,12 @@ SPREADSHEET_NAME = "JobindexScraper"
 SE_JOBBET_COL = "Se jobbet"
 RELEVANT_COL = "Relevant job"
 
-# Define the scope for Google Sheets API access
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name("/etc/secrets/credentials.json", scope)
+credentials = ServiceAccountCredentials.from_json_keyfile_name("credentials.json", scope)
 client = gspread.authorize(credentials)
 sheet = client.open(SPREADSHEET_NAME).sheet1
 
-# Helper functions to fetch job descriptions and analyze them
+# Helper functions
 def fetch_job_text(link):
     try:
         response = requests.get(link, timeout=10)
@@ -30,20 +29,24 @@ def fetch_job_text(link):
         body = soup.find("body")
         return body.get_text(separator=" ", strip=True) if body else ""
     except Exception as e:
-        print(f"Error fetching job link {link}: {e}")
+        print(f"Error fetching job text: {e}")
         return ""
 
 def analyze(job_text, prompt_instruks):
     try:
-        res = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        # Using the correct method for GPT-4 and setting the prompt
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # Make sure to use the GPT-4 model
             messages=[
-                {"role": "system", "content": "Du er en hjælper som vurderer jobopslag baseret på brugerens kriterier."},
-                {"role": "user", "content": f"{prompt_instruks}\n\nJobopslag:\n{job_text}"}
+                {"role": "system", "content": "You are a job evaluator."},
+                {"role": "user", "content": f"{prompt_instruks}\n\nJob Posting:\n{job_text}"}
             ],
-            temperature=0
+            temperature=0.5,  # Adjust the randomness level
+            max_tokens=150  # Adjust this to control response length
         )
-        return "Ja" if "Ja" in res["choices"][0]["message"]["content"] else "Nej"
+        # Extracting and formatting the response
+        output = response['choices'][0]['message']['content'].strip().lower()
+        return "Ja" if "ja" in output else "Nej"
     except Exception as e:
         print(f"Error analyzing job posting: {e}")
         return "Fejl"
@@ -60,7 +63,7 @@ def start_analyse(prompt_instruks):
         print(f"{idx+1}/{len(links)} ✅ {link} => {vurdering}")
         time.sleep(1.1)  # Avoid OpenAI throttling
 
-    # Write results to Google Sheet in batch
+    # Skriv til sheet (batch)
     cell_range = f"{gspread.utils.rowcol_to_a1(2, relevant_col)}:{gspread.utils.rowcol_to_a1(len(updates)+1, relevant_col)}"
     cell_list = sheet.range(cell_range)
     for i, cell in enumerate(cell_list):
@@ -69,10 +72,10 @@ def start_analyse(prompt_instruks):
 
     return "Analyse færdig og ark opdateret."
 
-# Endpoint for GPT action
+# Endpoint til GPT action
 @app.route("/analyser", methods=["POST"])
 def analyser():
-    data = request.get_json()  # Receive JSON data from the API call
+    data = request.get_json()
     print("🔍 Modtaget data:", data)
     instruks = data.get("instruks", "")
     print(f"Modtog instruks: {instruks}")
@@ -91,10 +94,7 @@ def analyser():
     response.headers["Content-Type"] = "application/json"
     return response
 
-
 # Flask start
 if __name__ == "__main__":
-    # Set the correct port for Render (Port 10000)
-    port = 10000  # Explicitly set to 10000 for Render
     print("✅ Klar til at modtage instruktioner og analysere jobopslag.")
-    app.run(host="0.0.0.0", port=port)  # Ensure Flask listens on all addresses and correct port
+    app.run(host="0.0.0.0", port=10000)  # Use 10000 to match Render's port binding
